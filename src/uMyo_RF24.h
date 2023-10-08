@@ -21,7 +21,13 @@
 #ifndef UMYO_RF24_h
 #define UMYO_RF24_h
 
+#if defined(ARDUINO_ARCH_NRF52) || defined(ARDUINO_ARCH_NRF52840) || defined(ARDUINO_ARCH_NRF52833)
+#define NRF52
+#include <nrf_to_nrf.h>
+#else
 #include <RF24.h>
+#endif
+
 #include "quat_math.h"
 #define MAX_UMYO_DEVICES 12
 
@@ -52,7 +58,6 @@ typedef struct uMyo_data
 class uMyo_RF24_
 {
 private:
-	RF24 *rf;
 	uMyo_data devices[MAX_UMYO_DEVICES];
 	sV nx, ny, nz;
 	int device_count;
@@ -60,8 +65,14 @@ private:
 	uint8_t idToIdx(uint32_t id);
 	uint8_t swapbits(uint8_t a);
 public:
+    #if defined (NRF52)
+	  nrf_to_nrf *rf;
+    #else
+      RF24 *rf;  
+    #endif
 	uMyo_RF24_(void);
 	void begin(int pin_cs, int pin_ce);
+	void begin();
 	void run();
 	void setProtocolVersion(int version);	
 	uint8_t getDeviceCount();
@@ -75,6 +86,8 @@ public:
 	float getPitch(uint8_t devidx);
 	float getRoll(uint8_t devidx);
 	float getYaw(uint8_t devidx);
+    bool available();
+    bool havePacket;
 };
 extern uMyo_RF24_ uMyo;
 

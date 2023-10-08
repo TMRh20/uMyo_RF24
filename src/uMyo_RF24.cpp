@@ -18,7 +18,11 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 #include <SPI.h>
-#include <RF24.h>
+#if defined (NRF52)
+  #include <nrf_to_nrf.h>
+#else
+  #include <RF24.h>
+#endif
 #include "uMyo_RF24.h"
 
 uMyo_RF24_::uMyo_RF24_(void)
@@ -44,15 +48,27 @@ uint8_t uMyo_RF24_::swapbits(uint8_t a)
     return v;
 }
 
+void uMyo_RF24_::begin(){
+  begin(0,0);
+}
+
 void uMyo_RF24_::begin(int pin_cs, int pin_ce)
 {
-	rf = new RF24(pin_ce, pin_cs, 1000000);
+    #if defined (NRF52)
+      rf = new nrf_to_nrf;
+    #else
+      rf = new RF24(pin_ce, pin_cs, 1000000);
+    #endif
 	uint8_t pipe_rx[8] = {0x0E, 0xE6, 0x0D, 0xA7, 0, 0, 0, 0};
 	for(int x = 0; x < 8; x++) //nRF24 and uMyo have different bit order for pipe address
 		pipe_rx[x] = swapbits(pipe_rx[x]);
 
 	rf->begin();
-	rf->setDataRate(RF24_1MBPS);
+	#if defined (NRF52)
+	  rf->setDataRate(NRF_1MBPS);
+	#else
+	  rf->setDataRate(RF24_1MBPS);
+	#endif
 	rf->setAddressWidth(4);
 	rf->setChannel(83);
 	rf->setRetries(0, 0);
@@ -60,8 +76,12 @@ void uMyo_RF24_::begin(int pin_cs, int pin_ce)
 	rf->disableDynamicPayloads();
 	rf->setPayloadSize(32);
 	rf->openReadingPipe(0, pipe_rx);
-	rf->setCRCLength(RF24_CRC_DISABLED);
-	rf->disableCRC();
+    #if defined (NRF52)
+	  rf->setCRCLength(NRF_CRC_DISABLED);
+    #else
+      rf->setCRCLength(RF24_CRC_DISABLED);
+      rf->disableCRC();
+    #endif
 //	rf->printDetails();
 	rf->startListening(); //listen for uMyo data
 	rf->printDetails(); 
@@ -102,13 +122,11 @@ uint8_t uMyo_RF24_::idToIdx(uint32_t id)
 void uMyo_RF24_::run()
 {
     uint8_t pipe = 0;
-	if(!rf->available(pipe)) return;
+	if(!rf->available(&pipe)) return;
 	uint8_t rf_pack[33];
-	if(pipe != 0){ return; }
-    
+	if(pipe > 0){ return; }
     rf->read(rf_pack, 33); //processing packet
 	uint8_t *in_pack = rf_pack+1; //ignore 1st byte
-
 	byte data_id = in_pack[0];
 	byte message_length = in_pack[1];
 	byte chk1 = in_pack[30];
@@ -168,7 +186,14 @@ void uMyo_RF24_::run()
 		if(sign_byte & 1<<(6-x)) devices[u].raw_data[1+x] = devices[u].raw_data[0] - in_pack[ppos++];
 		else devices[u].raw_data[1+x] = devices[u].raw_data[0] + in_pack[ppos++];
 	}
+    havePacket = true;
 }
+bool uMyo_RF24_::available(){
+   bool avail = havePacket;
+   havePacket = false;
+   return avail;   
+} 
+
 void uMyo_RF24_::setProtocolVersion(int version)
 {
 	protocol_version = version;
@@ -246,5 +271,4 @@ float uMyo_RF24_::getYaw(uint8_t devidx)
 	return atan2_f(nyr.y, nyr.x);
 }
 uMyo_RF24_ uMyo;
-
 
