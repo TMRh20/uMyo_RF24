@@ -101,9 +101,12 @@ uint8_t uMyo_RF24_::idToIdx(uint32_t id)
 
 void uMyo_RF24_::run()
 {
-	if(!rf->available()) return;
+    uint8_t pipe = 0;
+	if(!rf->available(pipe)) return;
 	uint8_t rf_pack[33];
-	rf->read(rf_pack, 33); //processing packet
+	if(pipe != 0){ return; }
+    
+    rf->read(rf_pack, 33); //processing packet
 	uint8_t *in_pack = rf_pack+1; //ignore 1st byte
 
 	byte data_id = in_pack[0];
